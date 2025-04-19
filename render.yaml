@@ -9,8 +9,8 @@ services:
         value: 5000
       - key: NODE_ENV
         value: production
-      - key: MODEL_URL
-        value: https://drive.google.com/file/d/1uSCEQRA3M8C4VbqpKdITM4OVUYwUOCrf/view?usp=sharing
+      - key: MODEL_PATH
+        value: model/skin_cancer_model_optimized.tflite
 
   - type: web
     name: skin-disease-detection-frontend

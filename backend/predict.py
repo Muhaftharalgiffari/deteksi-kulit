@@ -187,43 +187,82 @@ def main():
             print(json.dumps(result, ensure_ascii=False))
             sys.exit(1)
             
-        # Load model dan dapatkan detail input/output
-        interpreter = get_model()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
+        # Load model
+        try:
+            interpreter = get_model()
+            input_details = interpreter.get_input_details()
+            output_details = interpreter.get_output_details()
+        except Exception as e:
+            result = {
+                'success': False,
+                'error': f'Failed to load model: {str(e)}'
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(1)
         
         # Preprocess gambar
-        img = preprocess_image(image_path)
+        try:
+            processed_image = preprocess_image(image_path)
+        except Exception as e:
+            result = {
+                'success': False,
+                'error': f'Failed to preprocess image: {str(e)}'
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(1)
         
-        # Set input tensor
-        interpreter.set_tensor(input_details[0]['index'], img)
+        # Lakukan prediksi
+        try:
+            interpreter.set_tensor(input_details[0]['index'], processed_image)
+            interpreter.invoke()
+            predictions = interpreter.get_tensor(output_details[0]['index'])
+            
+            # Log prediksi untuk debugging
+            print(f"Raw predictions: {predictions[0]}", file=sys.stderr)
+            
+        except Exception as e:
+            result = {
+                'success': False,
+                'error': f'Failed to make prediction: {str(e)}'
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(1)
         
-        # Jalankan inferensi
-        interpreter.invoke()
+        # Dapatkan probabilitas untuk setiap kelas
+        class_names = ['akiec', 'bcc', 'bkl', 'df', 'mel', 'nv', 'vasc']
+        probabilities = predictions[0].tolist()
         
-        # Dapatkan hasil prediksi
-        predictions = interpreter.get_tensor(output_details[0]['index'])
-        class_idx = np.argmax(predictions[0])
-        confidence = float(predictions[0][class_idx])
+        # Urutkan prediksi dari yang tertinggi ke terendah
+        predictions_sorted = sorted(
+            zip(class_names, probabilities), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:3]  # Ambil 3 prediksi teratas
         
-        # Daftar kelas
-        classes = ['akiec', 'bcc', 'bkl', 'df', 'mel', 'nv', 'vasc']
-        predicted_class = classes[class_idx]
+        # Log prediksi teratas
+        print(f"Top predictions: {predictions_sorted}", file=sys.stderr)
         
-        # Dapatkan penjelasan prediksi
-        prediction_info = get_prediction_explanation(predicted_class, confidence)
+        # Format hasil dengan penjelasan
+        top_predictions = [
+            get_prediction_explanation(class_name, float(prob))
+            for class_name, prob in predictions_sorted
+        ]
         
         # Hitung waktu eksekusi
-        execution_time = time.time() - start_time
+        elapsed_time = time.time() - start_time
         
-        # Format hasil
         result = {
             'success': True,
-            'prediction': prediction_info,
-            'execution_time': execution_time
+            'top_3_predictions': top_predictions,
+            'performance': {
+                'processing_time': elapsed_time
+            },
+            'warning': 'Hasil prediksi hanya untuk referensi. Silakan konsultasi dengan dokter untuk diagnosis yang akurat.'
         }
         
+        # Print hasil sebagai JSON string
         print(json.dumps(result, ensure_ascii=False))
+        sys.exit(0)
         
     except Exception as e:
         result = {
@@ -233,5 +272,5 @@ def main():
         print(json.dumps(result, ensure_ascii=False))
         sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    main() 
