@@ -10,9 +10,8 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy package.json dan requirements.txt
-COPY backend/package*.json backend/
-COPY backend/requirements.txt backend/
+# Copy seluruh backend folder
+COPY backend ./backend
 
 # Install Node.js dependencies
 WORKDIR /app/backend
@@ -25,18 +24,13 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install Python dependencies dalam virtual environment
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copy rest of the application
-COPY backend/ backend/
-
-# Set working directory to backend
-WORKDIR /app/backend
-
-# Create uploads directory
-RUN mkdir -p uploads
+# Create necessary directories
+RUN mkdir -p uploads model
 
 # Environment variables
 ENV PORT=5000
 ENV NODE_ENV=production
+ENV PATH=/app/backend:$PATH
 
 # Expose port
 EXPOSE 5000
