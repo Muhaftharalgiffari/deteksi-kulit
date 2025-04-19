@@ -4,18 +4,23 @@ const { spawn } = require('child_process');
 const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
-const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
 
 const PORT = process.env.PORT || 5000;
+
+// Buat direktori yang diperlukan
+const uploadDir = path.join(__dirname, 'uploads');
+const modelDir = path.join(__dirname, 'model');
+
+// Pastikan direktori ada
+[uploadDir, modelDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+});
 
 // Konfigurasi storage untuk upload file
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
@@ -41,258 +46,234 @@ const upload = multer({
     }
 });
 
-// Menggunakan cluster untuk memanfaatkan multi-core CPU
-if (cluster.isMaster && process.env.NODE_ENV === 'production') {
-    console.log(`Master ${process.pid} is running`);
+const app = express();
 
-    // Fork workers
-    for (let i = 0; i < Math.min(numCPUs, 4); i++) {
-        cluster.fork();
-    }
+// Enable CORS with specific configuration
+const allowedOrigins = [
+    'https://skin-disease-detection-frontend-kx4d4vdnb.vercel.app',
+    'http://localhost:5173',  // For local development
+    'http://localhost:3000'   // For local development alternative port
+];
 
-    cluster.on('exit', (worker, code, signal) => {
-        console.log(`Worker ${worker.process.pid} died`);
-        // Restart worker jika mati
-        cluster.fork();
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            return callback(null, false);
+        }
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400 // Cache preflight request for 24 hours
+}));
+
+// Middleware
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Middleware untuk logging requests
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
+
+// OPTIONS handler untuk preflight requests
+app.options('*', cors());
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Selamat datang di API Deteksi Penyakit Kulit',
+        endpoints: {
+            predict: 'POST /api/predict - Upload gambar untuk prediksi',
+            model: 'GET /api/model - Download model',
+            uploadModel: 'POST /api/upload-model - Upload model baru',
+            health: 'GET /api/health - Health check'
+        }
     });
-} else {
-    const app = express();
+});
 
-    // Middleware
-    app.use(cors());
-    app.use(express.json());
-    app.use(express.static(path.join(__dirname, 'public')));
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Server berjalan dengan baik',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        modelExists: fs.existsSync(path.join(modelDir, 'skin_cancer_model_optimized.tflite'))
+    });
+});
 
-    // Endpoint untuk mengunduh model
-    app.get('/model', (req, res) => {
-        try {
-            const modelPath = path.join(__dirname, 'model', 'skin_cancer_model.h5');
-            if (!fs.existsSync(modelPath)) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Model tidak ditemukan'
-                });
-            }
-            res.download(modelPath);
-        } catch (error) {
-            console.error('Error serving model:', error);
-            res.status(500).json({
+// Endpoint untuk mengunduh model
+app.get('/api/model', (req, res) => {
+    try {
+        const modelPath = path.join(__dirname, 'model', 'skin_cancer_model_optimized.tflite');
+        if (!fs.existsSync(modelPath)) {
+            return res.status(404).json({
                 success: false,
-                error: 'Gagal mengunduh model'
+                error: 'Model tidak ditemukan'
             });
         }
-    });
-
-    // Endpoint untuk upload model
-    app.post('/upload-model', upload.single('model'), (req, res) => {
-        try {
-            if (!req.file) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Tidak ada file model yang diupload'
-                });
-            }
-
-            // Pastikan file adalah model h5
-            if (!req.file.originalname.endsWith('.h5')) {
-                fs.unlink(req.file.path, (err) => {
-                    if (err) console.error(`Error deleting file: ${err.message}`);
-                });
-                return res.status(400).json({
-                    success: false,
-                    error: 'File harus berformat .h5'
-                });
-            }
-
-            // Buat direktori model jika belum ada
-            const modelDir = path.join(__dirname, 'model');
-            if (!fs.existsSync(modelDir)) {
-                fs.mkdirSync(modelDir, { recursive: true });
-            }
-
-            // Pindahkan file ke direktori model
-            const modelPath = path.join(modelDir, 'skin_cancer_model.h5');
-            fs.rename(req.file.path, modelPath, (err) => {
-                if (err) {
-                    console.error('Error moving model file:', err);
-                    return res.status(500).json({
-                        success: false,
-                        error: 'Gagal menyimpan model'
-                    });
-                }
-                res.json({
-                    success: true,
-                    message: 'Model berhasil diupload',
-                    path: modelPath
-                });
-            });
-        } catch (error) {
-            console.error('Error in model upload:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Terjadi kesalahan saat mengupload model'
-            });
-        }
-    });
-
-    // Caching prediksi
-    const predictionCache = new Map();
-    const CACHE_TTL = 1000 * 60 * 60; // 1 jam
-
-    // Hapus cache item yang sudah expired
-    function cleanupCache() {
-        const now = Date.now();
-        for (const [key, entry] of predictionCache.entries()) {
-            if (now - entry.timestamp > CACHE_TTL) {
-                predictionCache.delete(key);
-            }
-        }
-    }
-
-    // Bersihkan cache setiap 10 menit
-    setInterval(cleanupCache, 10 * 60 * 1000);
-
-    // Predict endpoint
-    app.post('/predict', upload.single('image'), (req, res) => {
-        try {
-            if (!req.file) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Tidak ada file yang diupload'
-                });
-            }
-
-            console.log(`File diterima: ${req.file.path}`);
-
-            // Check cache untuk file yang mirip
-            const fileHash = req.file.size + '_' + path.extname(req.file.originalname);
-            if (predictionCache.has(fileHash)) {
-                const cachedResult = predictionCache.get(fileHash);
-                if (Date.now() - cachedResult.timestamp < CACHE_TTL) {
-                    console.log('Serving cached prediction');
-
-                    // Delete file since we're using cache
-                    fs.unlink(req.file.path, (err) => {
-                        if (err) console.error(`Error deleting file: ${err.message}`);
-                    });
-
-                    return res.json(cachedResult.data);
-                }
-            }
-
-            // Execute Python script for prediction
-            const pythonProcess = spawn('python', ['predict.py', req.file.path]);
-
-            let predictionOutput = '';
-            let errorOutput = '';
-
-            // Collect output from Python script
-            pythonProcess.stdout.on('data', (data) => {
-                predictionOutput += data.toString();
-            });
-
-            // Collect error output from Python script
-            pythonProcess.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-                console.log(`Python Error: ${data}`);
-            });
-
-            // Timeout promise untuk kill jika python script berjalan terlalu lama
-            const timeoutPromise = new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    pythonProcess.kill();
-                    reject(new Error('Prediction timed out after 60 seconds'));
-                }, 60000); // 60 seconds timeout
-            });
-
-            // Handle Python script completion
-            const processPromise = new Promise((resolve, reject) => {
-                pythonProcess.on('close', (code) => {
-                    // Delete the uploaded file after processing
-                    fs.unlink(req.file.path, (err) => {
-                        if (err) console.error(`Error deleting file: ${err.message}`);
-                    });
-
-                    if (code !== 0) {
-                        console.error(`Python process exited with code ${code}`);
-                        // Cek apakah error terkait model
-                        if (errorOutput.includes('model') || errorOutput.includes('Model')) {
-                            reject(new Error('Gagal memuat model AI. Silakan coba lagi nanti.'));
-                        } else {
-                            reject(new Error(`Proses prediksi gagal dengan kode ${code}: ${errorOutput}`));
-                        }
-                        return;
-                    }
-
-                    try {
-                        // Parse prediction result
-                        const predictionResult = JSON.parse(predictionOutput);
-
-                        // Add class names to response
-                        if (predictionResult.success && predictionResult.top_3_predictions) {
-                            // Cache result
-                            predictionCache.set(fileHash, {
-                                timestamp: Date.now(),
-                                data: predictionResult
-                            });
-
-                            resolve(predictionResult);
-                        } else {
-                            console.error('Invalid prediction result:', predictionResult);
-                            reject(new Error(predictionResult.error || 'Hasil prediksi tidak valid'));
-                        }
-                    } catch (error) {
-                        console.error('Error parsing prediction result:', error);
-                        console.error('Raw prediction output:', predictionOutput);
-                        reject(new Error('Gagal memproses hasil prediksi: ' + error.message));
-                    }
-                });
-            });
-
-            // Race between process completion and timeout
-            Promise.race([processPromise, timeoutPromise])
-                .then(result => {
-                    res.json(result);
-                })
-                .catch(error => {
-                    console.error('Prediction error:', error);
-                    res.status(500).json({
-                        success: false,
-                        error: error.message,
-                        details: errorOutput
-                    });
-                });
-
-        } catch (error) {
-            console.error('Server error in prediction route:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Terjadi kesalahan pada server',
-                details: error.message
-            });
-        }
-    });
-
-    // Error Handling Middleware
-    app.use((err, req, res, next) => {
-        console.error('Server Error:', err);
+        res.download(modelPath);
+    } catch (error) {
+        console.error('Error serving model:', error);
         res.status(500).json({
             success: false,
-            error: 'Terjadi kesalahan pada server: ' + (err.message || 'Unknown error')
+            error: 'Gagal mengunduh model'
         });
-    });
+    }
+});
 
-    // Handle 404 errors
-    app.use((req, res) => {
-        res.status(404).json({
+// Endpoint untuk upload model
+app.post('/api/upload-model', upload.single('model'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'Tidak ada file model yang diupload'
+            });
+        }
+
+        // Pastikan file adalah model tflite
+        if (!req.file.originalname.endsWith('.tflite')) {
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error(`Error deleting file: ${err.message}`);
+            });
+            return res.status(400).json({
+                success: false,
+                error: 'File harus berformat .tflite'
+            });
+        }
+
+        // Pindahkan file ke direktori model
+        const modelPath = path.join(modelDir, 'skin_cancer_model_optimized.tflite');
+        fs.rename(req.file.path, modelPath, (err) => {
+            if (err) {
+                console.error('Error moving model file:', err);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Gagal menyimpan model'
+                });
+            }
+            res.json({
+                success: true,
+                message: 'Model berhasil diupload',
+                path: modelPath
+            });
+        });
+    } catch (error) {
+        console.error('Error in model upload:', error);
+        res.status(500).json({
             success: false,
-            error: 'Endpoint tidak ditemukan'
+            error: 'Terjadi kesalahan saat mengupload model'
         });
-    });
+    }
+});
 
-    // Mulai server
-    app.listen(PORT, () => {
-        console.log(`Server berjalan di http://localhost:${PORT}`);
-        console.log(`Upload directory: ${path.join(__dirname, 'uploads')}`);
+// Predict endpoint dengan error handling yang lebih baik
+app.post('/api/predict', upload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'Tidak ada file yang diupload'
+            });
+        }
+
+        console.log(`File diterima: ${req.file.path}`);
+
+        // Periksa apakah model ada
+        const modelPath = path.join(modelDir, 'skin_cancer_model_optimized.tflite');
+        if (!fs.existsSync(modelPath)) {
+            return res.status(500).json({
+                success: false,
+                error: 'Model AI tidak ditemukan di server'
+            });
+        }
+
+        // Execute Python script for prediction
+        const pythonProcess = spawn('python', [
+            path.join(__dirname, 'predict.py'),
+            req.file.path
+        ]);
+
+        let predictionOutput = '';
+        let errorOutput = '';
+
+        // Collect output from Python script
+        pythonProcess.stdout.on('data', (data) => {
+            predictionOutput += data.toString();
+        });
+
+        // Collect error output from Python script
+        pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+            console.log(`Python Error: ${data}`);
+        });
+
+        // Handle Python script completion
+        pythonProcess.on('close', (code) => {
+            // Delete the uploaded file after processing
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error(`Error deleting file: ${err.message}`);
+            });
+
+            if (code !== 0) {
+                console.error(`Python process exited with code ${code}`);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Gagal memproses gambar',
+                    details: errorOutput
+                });
+            }
+
+            try {
+                const result = JSON.parse(predictionOutput);
+                res.json(result);
+            } catch (error) {
+                console.error('Error parsing prediction result:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Gagal memproses hasil prediksi',
+                    details: error.message
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('Server error in prediction route:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Terjadi kesalahan pada server',
+            details: error.message
+        });
+    }
+});
+
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error('Server Error:', err);
+    res.status(500).json({
+        success: false,
+        error: 'Terjadi kesalahan pada server: ' + (err.message || 'Unknown error')
     });
-} 
+});
+
+// Handle 404 errors
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint tidak ditemukan'
+    });
+});
+
+// Mulai server
+app.listen(PORT, () => {
+    console.log(`Server berjalan di http://localhost:${PORT}`);
+    console.log(`Upload directory: ${uploadDir}`);
+    console.log(`Model directory: ${modelDir}`);
+}); 
