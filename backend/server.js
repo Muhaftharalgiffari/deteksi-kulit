@@ -20,6 +20,16 @@ const allowedOrigins = [
 const uploadDir = path.join(__dirname, 'uploads');
 const modelDir = path.dirname(MODEL_PATH);
 
+// Debug logging
+console.log('=== Server Configuration ===');
+console.log('PORT:', PORT);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Current working directory:', process.cwd());
+console.log('Upload directory:', uploadDir);
+console.log('Model directory:', modelDir);
+console.log('Model path:', MODEL_PATH);
+console.log('Allowed origins:', allowedOrigins);
+
 // Pastikan direktori ada
 [uploadDir, modelDir].forEach(dir => {
     if (!fs.existsSync(dir)) {
@@ -28,16 +38,9 @@ const modelDir = path.dirname(MODEL_PATH);
     }
 });
 
-// Log environment info
-console.log('Environment:', process.env.NODE_ENV);
-console.log('Current working directory:', process.cwd());
-console.log('Model directory:', modelDir);
-console.log('Model path:', MODEL_PATH);
-console.log('Model exists:', fs.existsSync(MODEL_PATH));
-
 // List files in model directory
 if (fs.existsSync(modelDir)) {
-    console.log('Files in model directory:');
+    console.log('\n=== Model Directory Contents ===');
     fs.readdirSync(modelDir).forEach(file => {
         const filePath = path.join(modelDir, file);
         const stats = fs.statSync(filePath);
@@ -75,37 +78,25 @@ const upload = multer({
 
 const app = express();
 
-// Enable CORS with specific configuration
-app.use(cors({
-    origin: function(origin, callback) {
-        // allow requests with no origin (like mobile apps or curl requests)
-        if(!origin) return callback(null, true);
-        if(allowedOrigins.indexOf(origin) === -1){
-            var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
-        }
-        return callback(null, true);
-    },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: true,
-    maxAge: 86400
-}));
-
-// Tambahkan header CORS secara manual untuk memastikan
+// CORS middleware
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-    }
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
     
-    // Handle preflight requests
+    // Log the request origin
+    console.log('Request origin:', origin);
+    
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    // Handle preflight
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
+    
     next();
 });
 
