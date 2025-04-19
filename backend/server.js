@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-    origin: ['https://deteksi-kulit.vercel.app', 'http://localhost:5173'],
+    origin: [
+        'https://deteksi-kulit.vercel.app',
+        'https://deteksi-kulit-jjw06goln-afthars-projects-cdfc14e0.vercel.app',
+        'http://localhost:5173'
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
     optionsSuccessStatus: 204

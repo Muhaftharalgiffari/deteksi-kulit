@@ -1,3 +1,5 @@
+import { API_URL } from '../config.js';
+
 export function renderDetection() {
     const detection = document.createElement('div');
 
@@ -148,7 +150,7 @@ function initializeDetection() {
 
         // Fungsi untuk melakukan prediksi dengan retry
         const makePrediction = (retryCount = 0) => {
-            fetch('/predict', {
+            fetch(`${API_URL}/predict`, {
                 method: 'POST',
                 body: formData
             })

@@ -1,0 +1,1 @@
+export const API_URL = import.meta.env.VITE_API_URL || 'https://deteksi-kulit-production.up.railway.app'; 
