@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# But not these files...
+!package.json
+!package-lock.json
+!server.js
+!predict.py
+!setup.js
+!model/
+!model/skin_cancer_model_optimized.tflite
+!uploads/ 

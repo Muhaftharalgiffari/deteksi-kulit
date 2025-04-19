@@ -6,17 +6,44 @@ const cors = require('cors');
 const fs = require('fs');
 
 const PORT = process.env.PORT || 5000;
+const MODEL_PATH = process.env.MODEL_PATH || path.join(__dirname, 'model', 'skin_cancer_model_optimized.tflite');
+
+// Daftar domain yang diizinkan
+const allowedOrigins = [
+    'https://skin-disease-detection-frontend-e3y7h0du8.vercel.app',
+    'https://skin-disease-detection-frontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
 
 // Buat direktori yang diperlukan
 const uploadDir = path.join(__dirname, 'uploads');
-const modelDir = path.join(__dirname, 'model');
+const modelDir = path.dirname(MODEL_PATH);
 
 // Pastikan direktori ada
 [uploadDir, modelDir].forEach(dir => {
     if (!fs.existsSync(dir)) {
+        console.log(`Creating directory: ${dir}`);
         fs.mkdirSync(dir, { recursive: true });
     }
 });
+
+// Log environment info
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Current working directory:', process.cwd());
+console.log('Model directory:', modelDir);
+console.log('Model path:', MODEL_PATH);
+console.log('Model exists:', fs.existsSync(MODEL_PATH));
+
+// List files in model directory
+if (fs.existsSync(modelDir)) {
+    console.log('Files in model directory:');
+    fs.readdirSync(modelDir).forEach(file => {
+        const filePath = path.join(modelDir, file);
+        const stats = fs.statSync(filePath);
+        console.log(`- ${file} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+    });
+}
 
 // Konfigurasi storage untuk upload file
 const storage = multer.diskStorage({
@@ -50,11 +77,15 @@ const app = express();
 
 // Enable CORS with specific configuration
 app.use(cors({
-    origin: [
-        'https://skin-disease-detection-frontend.vercel.app',
-        'http://localhost:5173',
-        'http://localhost:3000'
-    ],
+    origin: function(origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if(!origin) return callback(null, true);
+        if(allowedOrigins.indexOf(origin) === -1){
+            var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
@@ -63,7 +94,10 @@ app.use(cors({
 
 // Tambahkan header CORS secara manual untuk memastikan
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://skin-disease-detection-frontend.vercel.app');
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -109,21 +143,20 @@ app.get('/api/health', (req, res) => {
         message: 'Server berjalan dengan baik',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
-        modelExists: fs.existsSync(path.join(modelDir, 'skin_cancer_model_optimized.tflite'))
+        modelExists: fs.existsSync(MODEL_PATH)
     });
 });
 
 // Endpoint untuk mengunduh model
 app.get('/api/model', (req, res) => {
     try {
-        const modelPath = path.join(__dirname, 'model', 'skin_cancer_model_optimized.tflite');
-        if (!fs.existsSync(modelPath)) {
+        if (!fs.existsSync(MODEL_PATH)) {
             return res.status(404).json({
                 success: false,
                 error: 'Model tidak ditemukan'
             });
         }
-        res.download(modelPath);
+        res.download(MODEL_PATH);
     } catch (error) {
         console.error('Error serving model:', error);
         res.status(500).json({
@@ -155,7 +188,7 @@ app.post('/api/upload-model', upload.single('model'), (req, res) => {
         }
 
         // Pindahkan file ke direktori model
-        const modelPath = path.join(modelDir, 'skin_cancer_model_optimized.tflite');
+        const modelPath = MODEL_PATH;
         fs.rename(req.file.path, modelPath, (err) => {
             if (err) {
                 console.error('Error moving model file:', err);
@@ -192,8 +225,7 @@ app.post('/api/predict', upload.single('image'), (req, res) => {
         console.log(`File diterima: ${req.file.path}`);
 
         // Periksa apakah model ada
-        const modelPath = path.join(modelDir, 'skin_cancer_model_optimized.tflite');
-        if (!fs.existsSync(modelPath)) {
+        if (!fs.existsSync(MODEL_PATH)) {
             return res.status(500).json({
                 success: false,
                 error: 'Model AI tidak ditemukan di server'
