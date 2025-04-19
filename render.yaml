@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: skin-disease-detection-backend
+    env: node
+    buildCommand: cd backend && npm install && pip install -r requirements.txt
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+      - key: MODEL_URL
+        value: https://drive.google.com/file/d/1uSCEQRA3M8C4VbqpKdITM4OVUYwUOCrf/view?usp=sharing
+
+  - type: web
+    name: skin-disease-detection-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://skin-disease-detection-backend.onrender.com 

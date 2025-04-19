@@ -1,0 +1,23 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "vite",
+    "start:backend": "cd ../backend && node server.js",
+    "start:all": "concurrently \"npm run dev\" \"npm run start:backend\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Skin Cancer Detection Frontend",
+  "dependencies": {
+    "vite": "^5.0.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

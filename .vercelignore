@@ -1,0 +1,15 @@
+model/*.h5
+model/tfjs/
+dataset/
+logs/
+node_modules/
+**/node_modules/
+.env
+.env.local
+.env.production
+*.h5
+*.pkl
+*.model
+*.weights
+**/package-lock.json
+**/yarn.lock 

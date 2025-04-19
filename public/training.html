@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Model Deteksi Penyakit Kulit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Deteksi Penyakit Kulit</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Deteksi</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/training.html">Training</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Training Model
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h5>Upload Dataset</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Training Data</label>
+                                        <input type="file" class="form-control" id="trainingDataInput" multiple
+                                            accept="image/*">
+                                        <small class="text-muted">Pilih gambar untuk training data</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Training Labels</label>
+                                        <input type="file" class="form-control" id="trainingLabelsInput" accept=".json">
+                                        <small class="text-muted">Upload file JSON berisi label training data</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Validation Data</label>
+                                        <input type="file" class="form-control" id="validationDataInput" multiple
+                                            accept="image/*">
+                                        <small class="text-muted">Pilih gambar untuk validation data</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Validation Labels</label>
+                                        <input type="file" class="form-control" id="validationLabelsInput"
+                                            accept=".json">
+                                        <small class="text-muted">Upload file JSON berisi label validation data</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5>Konfigurasi Training</h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Learning Rate</label>
+                                        <input type="number" class="form-control" id="learningRateInput" value="0.001"
+                                            step="0.0001">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Batch Size</label>
+                                        <input type="number" class="form-control" id="batchSizeInput" value="32">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Epochs</label>
+                                        <input type="number" class="form-control" id="epochsInput" value="50">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="startTrainingBtn" class="btn btn-primary">
+                            Mulai Training
+                        </button>
+
+                        <div id="trainingProgress" class="mt-4">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/model.js"></script>
+    <script src="js/training.js"></script>
+    <script>
+        document.getElementById('startTrainingBtn').addEventListener('click', async () => {
+            try {
+                const trainingDataInput = document.getElementById('trainingDataInput');
+                const trainingLabelsInput = document.getElementById('trainingLabelsInput');
+                const validationDataInput = document.getElementById('validationDataInput');
+                const validationLabelsInput = document.getElementById('validationLabelsInput');
+
+                // Validasi input
+                if (!trainingDataInput.files.length || !trainingLabelsInput.files[0] ||
+                    !validationDataInput.files.length || !validationLabelsInput.files[0]) {
+                    alert('Silakan pilih semua file yang diperlukan');
+                    return;
+                }
+
+                // Update konfigurasi model
+                skinDetection.MODEL_CONFIG.learningRate = parseFloat(document.getElementById('learningRateInput').value);
+                skinDetection.MODEL_CONFIG.batchSize = parseInt(document.getElementById('batchSizeInput').value);
+                skinDetection.MODEL_CONFIG.epochs = parseInt(document.getElementById('epochsInput').value);
+
+                // Baca file label
+                const trainingLabels = JSON.parse(await trainingLabelsInput.files[0].text());
+                const validationLabels = JSON.parse(await validationLabelsInput.files[0].text());
+
+                // Konversi file gambar ke URL
+                const trainingUrls = Array.from(trainingDataInput.files).map(file => URL.createObjectURL(file));
+                const validationUrls = Array.from(validationDataInput.files).map(file => URL.createObjectURL(file));
+
+                // Load dataset
+                const trainingData = await training.loadDataset(trainingUrls, trainingLabels);
+                const validationData = await training.loadDataset(validationUrls, validationLabels);
+
+                // Mulai training
+                await training.startTraining(trainingData, validationData);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan: ' + error.message);
+            }
+        });
+    </script>
+</body>
+
+</html>
