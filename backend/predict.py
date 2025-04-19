@@ -32,7 +32,7 @@ if gpus:
 MODEL = None
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'skin_cancer_model.h5')
 # URL akan diisi dengan URL download dari GitHub Release
-MODEL_URL = os.getenv('MODEL_URL', 'https://github.com/[USERNAME]/[REPO]/releases/download/v1.0.0/skin_cancer_model.h5')
+MODEL_URL = os.getenv('MODEL_URL', 'https://github.com/Muhaftharalgiffari/Web-Deteksi-Penyakit-Kulit/releases/download/v1.0.0/skin_cancer_model.h5')
 
 def download_model():
     """Download model dari GitHub Release"""
