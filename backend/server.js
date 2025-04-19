@@ -49,26 +49,31 @@ const upload = multer({
 const app = express();
 
 // Enable CORS with specific configuration
-const allowedOrigins = [
-    'https://skin-disease-detection-frontend-kx4d4vdnb.vercel.app',
-    'http://localhost:5173',  // For local development
-    'http://localhost:3000'   // For local development alternative port
-];
-
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            return callback(null, false);
-        }
-        return callback(null, true);
-    },
+    origin: [
+        'https://skin-disease-detection-frontend.vercel.app',
+        'http://localhost:5173',
+        'http://localhost:3000'
+    ],
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
-    maxAge: 86400 // Cache preflight request for 24 hours
+    maxAge: 86400
 }));
+
+// Tambahkan header CORS secara manual untuk memastikan
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://skin-disease-detection-frontend.vercel.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
 
 // Middleware
 app.use(express.json());
