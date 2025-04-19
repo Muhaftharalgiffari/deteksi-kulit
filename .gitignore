@@ -1,48 +1,39 @@
 # Dependencies
 node_modules/
-**/node_modules/
-
-# Package locks
-package-lock.json
-**/package-lock.json
-
-# Environment
-.env*
-**/.env*
-
-# Logs
-logs/
-**/logs/
-
-# Uploads
-backend/uploads/
-
-# Dataset
-dataset/
-
-# Model files
-model/*.h5
-model/tfjs/
-*.hdf5
-*.keras
-*.tflite
-
-# Cache
 __pycache__/
 *.pyc
-.cache/
-.pytest_cache/
 
-# IDE
-.vscode/
-.idea/
-
-.vercel
-
-# Credentials
-*credentials.json
-model_url.txt
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Build
 dist/
 build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Model files
+*.h5
+*.hdf5
+*.keras
+*.tflite
+backend/model/*.h5
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# System Files
+.DS_Store
+Thumbs.db
