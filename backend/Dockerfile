@@ -1,36 +1,33 @@
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install system dependencies and Node.js in one layer
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js
-RUN apt-get update && apt-get install -y \
     curl \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm cache clean --force
 
 WORKDIR /app/backend
 
-# Copy package files
+# Copy package files and install Node.js dependencies
 COPY package*.json ./
+RUN npm ci --only=production
 
-# Install Node.js dependencies
-RUN npm install
-
-# Set up Python virtual environment
+# Set up Python virtual environment and install dependencies
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy Python requirements and install
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
 COPY . .
+
+# Create necessary directories
+RUN mkdir -p uploads model
 
 # Expose port
 EXPOSE 8080
